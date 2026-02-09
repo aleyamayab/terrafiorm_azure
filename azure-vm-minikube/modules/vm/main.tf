@@ -2,9 +2,12 @@ resource "azurerm_public_ip" "this" {
   name                = "${var.name}-pip"
   location            = var.location
   resource_group_name = var.rg_name
-  allocation_method   = "Static"
-}
 
+  allocation_method = "Static"
+  sku               = "Standard"
+
+  zones = ["1"] # opcional pero recomendado
+}
 resource "azurerm_network_interface" "this" {
   name                = "${var.name}-nic"
   location            = var.location
