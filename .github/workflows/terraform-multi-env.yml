@@ -13,57 +13,207 @@ on:
           - qa
           - prod
 
+env:
+  TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
+  TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
+  TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
+  ENVIRONMENT: ${{ github.event.inputs.environment }}
+  WORKING_DIR: azure-vm-minikube/environments/${{ github.event.inputs.environment }}
+
 jobs:
-  terraform:
+  # ==========================================
+  # JOB 1: VALIDATE & FORMAT
+  # ==========================================
+  validate:
+    name: Validate & Format
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }}
-
-    env:
-      TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
-      TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
-      TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
-      ENVIRONMENT: ${{ github.event.inputs.environment }}
-
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
 
       - name: Azure Login
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client_secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: Display Selected Environment
-        run: echo "🚀 Deploying to ${{ env.ENVIRONMENT }} environment"
+      - name: Display Environment
+        run: |
+          echo "Environment: ${{ env.ENVIRONMENT }}"
+          echo "Working Directory: ${{ env.WORKING_DIR }}"
 
       - name: Terraform Init
         run: terraform init
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Validate
         run: terraform validate
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Format Check
         run: terraform fmt -check -recursive ../../
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        working-directory: ${{ env.WORKING_DIR }}
         continue-on-error: true
 
+      - name: Validation Summary
+        run: |
+          echo "## Validation Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Terraform configuration is valid" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # JOB 2: PLAN
+  # ==========================================
+  plan:
+    name: Plan Infrastructure
+    runs-on: ubuntu-latest
+    needs: validate
+    outputs:
+      plan_exitcode: ${{ steps.plan.outputs.exitcode }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.WORKING_DIR }}
+
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        id: plan
+        run: |
+          terraform plan -out=tfplan -detailed-exitcode
+          echo "exitcode=$?" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.WORKING_DIR }}
+        continue-on-error: true
+
+      - name: Upload Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ env.ENVIRONMENT }}
+          path: ${{ env.WORKING_DIR }}/tfplan
+          retention-days: 5
+
+      - name: Plan Summary
+        run: |
+          echo "## Terraform Plan" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Plan generated successfully" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "- Review the plan output above" >> $GITHUB_STEP_SUMMARY
+          echo "- The apply job will execute automatically if plan succeeds" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # JOB 3: APPLY (con aprobación para PROD)
+  # ==========================================
+  apply:
+    name: Apply Infrastructure
+    runs-on: ubuntu-latest
+    needs: plan
+    environment: 
+      name: ${{ github.event.inputs.environment }}
+      url: https://portal.azure.com
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.WORKING_DIR }}
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-${{ env.ENVIRONMENT }}
+          path: ${{ env.WORKING_DIR }}
 
       - name: Terraform Apply
         run: terraform apply -auto-approve tfplan
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Get Outputs
+      - name: Save State Info
+        run: |
+          echo "Apply completed for ${{ env.ENVIRONMENT }}" > apply-result.txt
+          date >> apply-result.txt
+        working-directory: ${{ env.WORKING_DIR }}
+
+      - name: Apply Summary
+        run: |
+          echo "## Apply Complete" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Status:** Infrastructure deployed successfully" >> $GITHUB_STEP_SUMMARY
+
+  # ==========================================
+  # JOB 4: OUTPUTS & SUMMARY
+  # ==========================================
+  outputs:
+    name: Get Outputs
+    runs-on: ubuntu-latest
+    needs: apply
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.WORKING_DIR }}
+
+      - name: Get Terraform Outputs
         id: outputs
         run: |
           VM_IP=$(terraform output -raw vm_public_ip)
@@ -72,17 +222,36 @@ jobs:
           echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
           echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
           echo "vm_name=$VM_NAME" >> $GITHUB_OUTPUT
-        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+          echo "VM Public IP: $VM_IP"
+          echo "Resource Group: $RG_NAME"
+          echo "VM Name: $VM_NAME"
+        working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Summary
+      - name: Deployment Summary
         run: |
-          echo "## ✅ Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Deployment Complete" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Resource Group:** ${{ steps.outputs.outputs.rg_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**VM Name:** ${{ steps.outputs.outputs.vm_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Public IP:** ${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Infrastructure Details" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### 🖥️ Connect via RDP" >> $GITHUB_STEP_SUMMARY
-          echo "- **Host:** ${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **User:** Check GitHub Secrets (TF_VAR_ADMIN_USER)" >> $GITHUB_STEP_SUMMARY
+          echo "| Resource | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| **Environment** | ${{ env.ENVIRONMENT }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Resource Group** | ${{ steps.outputs.outputs.rg_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **VM Name** | ${{ steps.outputs.outputs.vm_name }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| **Public IP** | ${{ steps.outputs.outputs.vm_ip }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Connect via RDP" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# Windows" >> $GITHUB_STEP_SUMMARY
+          echo "mstsc /v:${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "# Linux/macOS" >> $GITHUB_STEP_SUMMARY
+          echo "remmina rdp://${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Credentials:** Use TF_VAR_ADMIN_USER and TF_VAR_ADMIN_PASSWORD from secrets" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Quick Links" >> $GITHUB_STEP_SUMMARY
+          echo "- [Azure Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.outputs.outputs.rg_name }})" >> $GITHUB_STEP_SUMMARY
+          echo "- [VM in Portal](https://portal.azure.com/#@/resource/subscriptions/${{ secrets.AZURE_SUBSCRIPTION_ID }}/resourceGroups/${{ steps.outputs.outputs.rg_name }}/providers/Microsoft.Compute/virtualMachines/${{ steps.outputs.outputs.vm_name }})" >> $GITHUB_STEP_SUMMARY
