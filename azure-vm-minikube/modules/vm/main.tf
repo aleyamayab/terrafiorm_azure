@@ -23,20 +23,16 @@ resource "azurerm_network_interface_security_group_association" "this" {
   network_security_group_id = var.nsg_id
 }
 
-resource "azurerm_linux_virtual_machine" "this" {
+resource "azurerm_windows_virtual_machine" "this" {
   name                = var.name
   resource_group_name = var.rg_name
   location            = var.location
   size                = var.size
   admin_username      = var.admin_user
+  admin_password      = var.admin_password
   network_interface_ids = [
     azurerm_network_interface.this.id
   ]
-
-  admin_ssh_key {
-    username   = var.admin_user
-    public_key = file(var.ssh_public_key)
-  }
 
   os_disk {
     caching              = "ReadWrite"
@@ -44,9 +40,12 @@ resource "azurerm_linux_virtual_machine" "this" {
   }
 
   source_image_reference {
-    publisher = "Canonical"
-    offer     = "0001-com-ubuntu-server-jammy"
-    sku       = "22_04-lts"
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2022-Datacenter"
     version   = "latest"
   }
+
+  enable_automatic_updates = true
+  patch_mode               = "AutomaticByPlatform"
 }

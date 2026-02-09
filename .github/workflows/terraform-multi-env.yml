@@ -1,0 +1,87 @@
+name: Terraform Multi-Environment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Select environment to deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - qa
+          - prod
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    env:
+      TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
+      TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
+      TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
+      ENVIRONMENT: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Azure Login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Display Selected Environment
+        run: echo "🚀 Deploying to ${{ env.ENVIRONMENT }} environment"
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+
+      - name: Terraform Validate
+        run: terraform validate
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+
+      - name: Terraform Format Check
+        run: terraform fmt -check -recursive ../../
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+        continue-on-error: true
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+
+      - name: Get Outputs
+        id: outputs
+        run: |
+          VM_IP=$(terraform output -raw vm_public_ip)
+          RG_NAME=$(terraform output -raw resource_group_name)
+          VM_NAME=$(terraform output -raw vm_name)
+          echo "vm_ip=$VM_IP" >> $GITHUB_OUTPUT
+          echo "rg_name=$RG_NAME" >> $GITHUB_OUTPUT
+          echo "vm_name=$VM_NAME" >> $GITHUB_OUTPUT
+        working-directory: azure-vm-minikube/environments/${{ env.ENVIRONMENT }}
+
+      - name: Summary
+        run: |
+          echo "## ✅ Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Environment:** ${{ env.ENVIRONMENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Resource Group:** ${{ steps.outputs.outputs.rg_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**VM Name:** ${{ steps.outputs.outputs.vm_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Public IP:** ${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 🖥️ Connect via RDP" >> $GITHUB_STEP_SUMMARY
+          echo "- **Host:** ${{ steps.outputs.outputs.vm_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **User:** Check GitHub Secrets (TF_VAR_ADMIN_USER)" >> $GITHUB_STEP_SUMMARY

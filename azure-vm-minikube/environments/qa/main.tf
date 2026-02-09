@@ -1,6 +1,6 @@
 module "rg" {
   source   = "../../modules/resource-group"
-  name     = "rg-devsu-demo"
+  name     = "rg-devsu-qa"
   location = var.location
 }
 
@@ -8,15 +8,15 @@ module "network" {
   source      = "../../modules/network"
   rg_name     = module.rg.name
   location    = var.location
-  vnet_name   = "vnet-dev"
-  subnet_name = "snet-dev"
-  vnet_cidr   = "10.10.0.0/16"
-  subnet_cidr = "10.10.1.0/24"
+  vnet_name   = "vnet-qa"
+  subnet_name = "snet-qa"
+  vnet_cidr   = "10.20.0.0/16"
+  subnet_cidr = "10.20.1.0/24"
 }
 
 module "nsg" {
   source     = "../../modules/nsg"
-  name       = "nsg-dev"
+  name       = "nsg-qa"
   rg_name    = module.rg.name
   location   = var.location
   allowed_ip = var.allowed_ip
@@ -24,7 +24,7 @@ module "nsg" {
 
 module "vm" {
   source         = "../../modules/vm"
-  name           = "vm-dev-minikube"
+  name           = "vm-qa-minikube"
   rg_name        = module.rg.name
   location       = var.location
   subnet_id      = module.network.subnet_id

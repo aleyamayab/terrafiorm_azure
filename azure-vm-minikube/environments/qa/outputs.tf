@@ -10,5 +10,5 @@ output "resource_group_name" {
 
 output "vm_name" {
   description = "Nombre de la VM"
-  value       = "vm-dev-minikube"
+  value       = "vm-qa-minikube"
 }
