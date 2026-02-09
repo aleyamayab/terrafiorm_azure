@@ -26,6 +26,6 @@ module "aks" {
   node_count          = 1
   min_count           = 1
   max_count           = 3
-  vm_size             = "Standard_B2s"
+  vm_size             = "standard_b2ps_v2"
   tags                = var.tags
 }
