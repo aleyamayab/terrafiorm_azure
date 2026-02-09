@@ -13,7 +13,7 @@ on:
           - qa
           - prod
 
-# PERMISOS CORRECTOS (NO OIDC)
+#Permisos correctos (NO OIDC)
 permissions:
   contents: read
 
@@ -21,17 +21,17 @@ env:
   ENVIRONMENT: ${{ github.event.inputs.environment }}
   WORKING_DIR: azure-vm-minikube/environments/${{ github.event.inputs.environment }}
 
-  # Terraform variables desde Secrets
+  # Variables Terraform desde GitHub Secrets
   TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
   TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
   TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
 
 jobs:
-  # ==========================================
-  # JOB 1: VALIDATE & FORMAT
-  # ==========================================
+  # ======================================================
+  # JOB 1: VALIDATE
+  # ======================================================
   validate:
-    name: Validate & Format
+    name: Terraform Validate
     runs-on: ubuntu-latest
 
     steps:
@@ -47,10 +47,7 @@ jobs:
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Terraform Init
         run: terraform init
@@ -65,9 +62,9 @@ jobs:
         working-directory: azure-vm-minikube
         continue-on-error: true
 
-  # ==========================================
+  # ======================================================
   # JOB 2: PLAN
-  # ==========================================
+  # ======================================================
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
@@ -86,10 +83,7 @@ jobs:
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Terraform Init
         run: terraform init
@@ -106,9 +100,9 @@ jobs:
           path: ${{ env.WORKING_DIR }}/tfplan
           retention-days: 5
 
-  # ==========================================
+  # ======================================================
   # JOB 3: APPLY
-  # ==========================================
+  # ======================================================
   apply:
     name: Terraform Apply
     runs-on: ubuntu-latest
@@ -130,10 +124,7 @@ jobs:
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Terraform Init
         run: terraform init
@@ -149,9 +140,9 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ${{ env.WORKING_DIR }}
 
-  # ==========================================
+  # ======================================================
   # JOB 4: OUTPUTS
-  # ==========================================
+  # ======================================================
   outputs:
     name: Terraform Outputs
     runs-on: ubuntu-latest
@@ -171,15 +162,12 @@ jobs:
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
 
       - name: Terraform Init
         run: terraform init
         working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Show Outputs
+      - name: Show Terraform Outputs
         run: terraform output
         working-directory: ${{ env.WORKING_DIR }}
