@@ -13,12 +13,22 @@ on:
           - qa
           - prod
 
-#Permisos correctos (NO OIDC)
+      action:
+        description: "Terraform action"
+        required: true
+        default: "apply"
+        type: choice
+        options:
+          - apply
+          - destroy
+
+# Permisos correctos (NO OIDC)
 permissions:
   contents: read
 
 env:
   ENVIRONMENT: ${{ github.event.inputs.environment }}
+  ACTION: ${{ github.event.inputs.action }}
   WORKING_DIR: azure-vm-minikube/environments/${{ github.event.inputs.environment }}
 
   # Terraform variables desde GitHub Secrets
@@ -43,14 +53,12 @@ jobs:
         with:
           terraform_version: 1.6.0
 
-      # 🔐 Azure Login (Service Principal)
       - name: Azure Login
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # 🔑 EXPORTAR ARM_* PARA TERRAFORM (CLAVE)
       - name: Export ARM credentials for Terraform
         run: |
           echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
@@ -73,12 +81,13 @@ jobs:
         continue-on-error: true
 
   # ======================================================
-  # JOB 2: PLAN
+  # JOB 2: PLAN (solo apply)
   # ======================================================
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
     needs: validate
+    if: ${{ env.ACTION == 'apply' }}
 
     steps:
       - name: Checkout code
@@ -119,14 +128,14 @@ jobs:
           retention-days: 5
 
   # ======================================================
-  # JOB 3: APPLY
+  # JOB 3: APPLY / DESTROY
   # ======================================================
-  apply:
-    name: Terraform Apply
+  execute:
+    name: Terraform Apply or Destroy
     runs-on: ubuntu-latest
-    needs: plan
+    needs: validate
     environment:
-      name: ${{ github.event.inputs.environment }}
+      name: ${{ env.ENVIRONMENT }}
 
     steps:
       - name: Checkout code
@@ -157,22 +166,31 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Download Plan Artifact
+        if: ${{ env.ACTION == 'apply' }}
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ env.ENVIRONMENT }}
           path: ${{ env.WORKING_DIR }}
 
-      - name: Terraform Apply
-        run: terraform apply -auto-approve tfplan
+      - name: Terraform Execute
+        run: |
+          if [ "${{ env.ACTION }}" = "apply" ]; then
+            echo "Applying infrastructure..."
+            terraform apply -auto-approve tfplan
+          else
+            echo "Destroying infrastructure..."
+            terraform destroy -auto-approve
+          fi
         working-directory: ${{ env.WORKING_DIR }}
 
   # ======================================================
-  # JOB 4: OUTPUTS
+  # JOB 4: OUTPUTS (solo apply)
   # ======================================================
   outputs:
     name: Terraform Outputs
     runs-on: ubuntu-latest
-    needs: apply
+    needs: execute
+    if: ${{ env.ACTION == 'apply' }}
 
     steps:
       - name: Checkout code
