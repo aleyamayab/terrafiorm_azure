@@ -1,4 +1,4 @@
-variable "location" { default = "eastus" }
+variable "location" { default = "eastus2" }
 variable "admin_user" {
   type = string
 }
