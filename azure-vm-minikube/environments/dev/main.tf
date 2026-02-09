@@ -1,6 +1,6 @@
 module "rg" {
   source   = "../../modules/resource-group"
-  name     = "rg-devsu-demodev"
+  name     = "rg-devsu-demodev-westus2"
   location = var.location
 }
 

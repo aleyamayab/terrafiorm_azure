@@ -1,4 +1,4 @@
-variable "location" { default = "centralus" }
+variable "location" { default = "westus2" }
 variable "admin_user" {
   type = string
 }
