@@ -15,5 +15,5 @@ variable "admin_password" {
 
 variable "size" {
   type    = string
-  default = "Standard_B1s"
+  default = "Standard_B2s"
 }
