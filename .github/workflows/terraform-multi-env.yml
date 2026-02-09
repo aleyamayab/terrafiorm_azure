@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Select environment to deploy"
+        description: "Select environment"
         required: true
         default: "dev"
         type: choice
@@ -22,31 +22,28 @@ on:
           - apply
           - destroy
 
-# Permisos correctos (NO OIDC)
 permissions:
   contents: read
 
 env:
-  ENVIRONMENT: ${{ github.event.inputs.environment }}
-  ACTION: ${{ github.event.inputs.action }}
-  WORKING_DIR: azure-vm-minikube/environments/${{ github.event.inputs.environment }}
+  ENVIRONMENT: ${{ inputs.environment }}
+  WORKING_DIR: azure-vm-minikube/environments/${{ inputs.environment }}
 
-  # Terraform variables desde GitHub Secrets
+  # Terraform variables
   TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
   TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
   TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
 
 jobs:
   # ======================================================
-  # JOB 1: VALIDATE
+  # VALIDATE
   # ======================================================
   validate:
     name: Terraform Validate
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -59,7 +56,7 @@ jobs:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Export ARM credentials for Terraform
+      - name: Export ARM credentials
         run: |
           echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
           echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
@@ -75,23 +72,22 @@ jobs:
         run: terraform validate
         working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Terraform Format Check
+      - name: Terraform Format
         run: terraform fmt -check -recursive
         working-directory: azure-vm-minikube
         continue-on-error: true
 
   # ======================================================
-  # JOB 2: PLAN (solo apply)
+  # PLAN (solo apply)
   # ======================================================
   plan:
     name: Terraform Plan
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ env.ACTION == 'apply' }}
+    if: ${{ inputs.action == 'apply' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -104,7 +100,7 @@ jobs:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Export ARM credentials for Terraform
+      - name: Export ARM credentials
         run: |
           echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
           echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
@@ -120,7 +116,7 @@ jobs:
         run: terraform plan -out=tfplan
         working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Upload Plan Artifact
+      - name: Upload Plan
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-${{ env.ENVIRONMENT }}
@@ -128,18 +124,17 @@ jobs:
           retention-days: 5
 
   # ======================================================
-  # JOB 3: APPLY / DESTROY
+  # APPLY / DESTROY
   # ======================================================
   execute:
     name: Terraform Apply or Destroy
     runs-on: ubuntu-latest
     needs: validate
     environment:
-      name: ${{ env.ENVIRONMENT }}
+      name: ${{ inputs.environment }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -153,7 +148,7 @@ jobs:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Export ARM credentials for Terraform
+      - name: Export ARM credentials
         run: |
           echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
           echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
@@ -165,8 +160,8 @@ jobs:
         run: terraform init
         working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Download Plan Artifact
-        if: ${{ env.ACTION == 'apply' }}
+      - name: Download Plan
+        if: ${{ inputs.action == 'apply' }}
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ env.ENVIRONMENT }}
@@ -174,27 +169,26 @@ jobs:
 
       - name: Terraform Execute
         run: |
-          if [ "${{ env.ACTION }}" = "apply" ]; then
-            echo "Applying infrastructure..."
+          if [ "${{ inputs.action }}" = "apply" ]; then
+            echo ">>> APPLY"
             terraform apply -auto-approve tfplan
           else
-            echo "Destroying infrastructure..."
+            echo ">>> DESTROY"
             terraform destroy -auto-approve
           fi
         working-directory: ${{ env.WORKING_DIR }}
 
   # ======================================================
-  # JOB 4: OUTPUTS (solo apply)
+  # OUTPUTS (solo apply)
   # ======================================================
   outputs:
     name: Terraform Outputs
     runs-on: ubuntu-latest
     needs: execute
-    if: ${{ env.ACTION == 'apply' }}
+    if: ${{ inputs.action == 'apply' }}
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -208,7 +202,7 @@ jobs:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Export ARM credentials for Terraform
+      - name: Export ARM credentials
         run: |
           echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
           echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
@@ -220,6 +214,7 @@ jobs:
         run: terraform init
         working-directory: ${{ env.WORKING_DIR }}
 
-      - name: Show Terraform Outputs
+      - name: Terraform Output
         run: terraform output
         working-directory: ${{ env.WORKING_DIR }}
+
