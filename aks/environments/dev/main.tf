@@ -23,7 +23,6 @@ module "aks" {
   cluster_name        = "aks-dev-lab"
   dns_prefix          = "aksdevlab"
   subnet_id           = module.network.subnet_id
-  kubernetes_version  = "1.29.2"
   node_count          = 1
   min_count           = 1
   max_count           = 3

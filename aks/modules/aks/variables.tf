@@ -19,7 +19,9 @@ variable "subnet_id" {
 }
 
 variable "kubernetes_version" {
-  type = string
+  type     = string
+  default  = null
+  nullable = true
 }
 
 variable "vm_size" {
