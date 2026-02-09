@@ -29,6 +29,6 @@ module "vm" {
   location       = var.location
   subnet_id      = module.network.subnet_id
   nsg_id         = module.nsg.id
-  admin_password = var.admin_password
   admin_user     = var.admin_user
+  admin_password = var.admin_password
 }
