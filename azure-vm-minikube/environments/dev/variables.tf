@@ -5,7 +5,7 @@ variable "location" {
 variable "rg_name" {
   description = "Resource Group name"
   type        = string
-  default     = "rg-devsu-dev01"
+  default     = "rg-devsu-devops01"
 }
 
 variable "vm_name" {
