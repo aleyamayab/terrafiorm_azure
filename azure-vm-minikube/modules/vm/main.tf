@@ -49,6 +49,7 @@ resource "azurerm_windows_virtual_machine" "this" {
     version   = "latest"
   }
 
-  enable_automatic_updates = true
-  patch_mode               = "AutomaticByPlatform"
+   enable_automatic_updates = true
+   patch_mode               = "Manual"
+   
 }
