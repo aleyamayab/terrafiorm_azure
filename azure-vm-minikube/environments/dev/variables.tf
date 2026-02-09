@@ -5,13 +5,13 @@ variable "location" {
 variable "rg_name" {
   description = "Resource Group name"
   type        = string
-  default     = "rg-devsu-devops01"
+  default     = "rg-k8s-dev"
 }
 
 variable "vm_name" {
   description = "Virtual Machine name"
   type        = string
-  default     = "vm-dev-minikube"
+  default     = "vm-k8s-minikube"
 }
 
 variable "admin_user" {
