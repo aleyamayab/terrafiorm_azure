@@ -1,5 +1,5 @@
 module "rg" {
-  source   = "../../modules/resource_group"
+  source   = "../../modules/resource-group"
   name     = "rg-dev-aks"
   location = var.location
   tags     = var.tags
