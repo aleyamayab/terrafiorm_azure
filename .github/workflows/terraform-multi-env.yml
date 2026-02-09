@@ -27,12 +27,8 @@ permissions:
 
 env:
   ENVIRONMENT: ${{ inputs.environment }}
-  WORKING_DIR: azure-vm-minikube/environments/${{ inputs.environment }}
+  WORKING_DIR: aks/environments/${{ inputs.environment }}
 
-  # Terraform variables
-  TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
-  TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
-  TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
 
 jobs:
   # ======================================================
@@ -74,7 +70,7 @@ jobs:
 
       - name: Terraform Format
         run: terraform fmt -check -recursive
-        working-directory: azure-vm-minikube
+        working-directory: ${{ env.WORKING_DIR }}
         continue-on-error: true
 
   # ======================================================
@@ -84,7 +80,6 @@ jobs:
     name: Terraform Plan
     runs-on: ubuntu-latest
     needs: validate
-    if: ${{ inputs.action == 'apply' }}
 
     steps:
       - uses: actions/checkout@v4
@@ -113,7 +108,12 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Terraform Plan
-        run: terraform plan -out=tfplan
+        run: |
+          if [ "${{ inputs.action }}" = "destroy" ]; then
+            terraform plan -destroy -out=tfplan
+          else
+            terraform plan -out=tfplan
+          fi
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Upload Plan
@@ -129,7 +129,7 @@ jobs:
   execute:
     name: Terraform Apply or Destroy
     runs-on: ubuntu-latest
-    needs: validate
+    needs: [validate, plan]
     environment:
       name: ${{ inputs.environment }}
 
@@ -161,7 +161,6 @@ jobs:
         working-directory: ${{ env.WORKING_DIR }}
 
       - name: Download Plan
-        if: ${{ inputs.action == 'apply' }}
         uses: actions/download-artifact@v4
         with:
           name: tfplan-${{ env.ENVIRONMENT }}
@@ -169,13 +168,12 @@ jobs:
 
       - name: Terraform Execute
         run: |
-          if [ "${{ inputs.action }}" = "apply" ]; then
-            echo ">>> APPLY"
-            terraform apply -auto-approve tfplan
+          if [ "${{ inputs.action }}" = "destroy" ]; then
+            echo ">>> DESTROY (apply destroy plan)"
           else
-            echo ">>> DESTROY"
-            terraform destroy -auto-approve
+            echo ">>> APPLY"
           fi
+          terraform apply -auto-approve tfplan
         working-directory: ${{ env.WORKING_DIR }}
 
   # ======================================================
