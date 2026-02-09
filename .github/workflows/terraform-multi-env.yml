@@ -21,7 +21,7 @@ env:
   ENVIRONMENT: ${{ github.event.inputs.environment }}
   WORKING_DIR: azure-vm-minikube/environments/${{ github.event.inputs.environment }}
 
-  # Variables Terraform desde GitHub Secrets
+  # Terraform variables desde GitHub Secrets
   TF_VAR_allowed_ip: ${{ secrets.TF_VAR_ALLOWED_IP }}
   TF_VAR_admin_user: ${{ secrets.TF_VAR_ADMIN_USER }}
   TF_VAR_admin_password: ${{ secrets.TF_VAR_ADMIN_PASSWORD }}
@@ -43,11 +43,21 @@ jobs:
         with:
           terraform_version: 1.6.0
 
-      - name: Azure Login (Service Principal)
+      # 🔐 Azure Login (Service Principal)
+      - name: Azure Login
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # 🔑 EXPORTAR ARM_* PARA TERRAFORM (CLAVE)
+      - name: Export ARM credentials for Terraform
+        run: |
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
+          echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret sp.json)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId sp.json)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId sp.json)" >> $GITHUB_ENV
 
       - name: Terraform Init
         run: terraform init
@@ -79,11 +89,19 @@ jobs:
         with:
           terraform_version: 1.6.0
 
-      - name: Azure Login (Service Principal)
+      - name: Azure Login
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Export ARM credentials for Terraform
+        run: |
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
+          echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret sp.json)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId sp.json)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId sp.json)" >> $GITHUB_ENV
 
       - name: Terraform Init
         run: terraform init
@@ -120,11 +138,19 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
 
-      - name: Azure Login (Service Principal)
+      - name: Azure Login
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Export ARM credentials for Terraform
+        run: |
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
+          echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret sp.json)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId sp.json)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId sp.json)" >> $GITHUB_ENV
 
       - name: Terraform Init
         run: terraform init
@@ -158,11 +184,19 @@ jobs:
           terraform_version: 1.6.0
           terraform_wrapper: false
 
-      - name: Azure Login (Service Principal)
+      - name: Azure Login
         uses: azure/login@v2
         with:
           auth-type: SERVICE_PRINCIPAL
           creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Export ARM credentials for Terraform
+        run: |
+          echo '${{ secrets.AZURE_CREDENTIALS }}' > sp.json
+          echo "ARM_CLIENT_ID=$(jq -r .clientId sp.json)" >> $GITHUB_ENV
+          echo "ARM_CLIENT_SECRET=$(jq -r .clientSecret sp.json)" >> $GITHUB_ENV
+          echo "ARM_SUBSCRIPTION_ID=$(jq -r .subscriptionId sp.json)" >> $GITHUB_ENV
+          echo "ARM_TENANT_ID=$(jq -r .tenantId sp.json)" >> $GITHUB_ENV
 
       - name: Terraform Init
         run: terraform init
