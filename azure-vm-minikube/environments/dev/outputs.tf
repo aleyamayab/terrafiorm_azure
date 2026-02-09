@@ -1,6 +1,6 @@
 output "vm_public_ip" {
-  description = "IP pública de la VM de Minikube"
-  value       = module.vm.public_ip
+  description = "IP pública de la VM"
+  value       = module.vm.vm_public_ip
 }
 
 output "resource_group_name" {
@@ -10,5 +10,5 @@ output "resource_group_name" {
 
 output "vm_name" {
   description = "Nombre de la VM"
-  value       = "vm-dev-minikube"
+  value       = module.vm.vm_name
 }
