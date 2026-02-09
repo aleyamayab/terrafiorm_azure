@@ -1,14 +1,20 @@
-output "vm_public_ip" {
-  description = "IP pública de la VM"
-  value       = module.vm.vm_public_ip
-}
-
 output "resource_group_name" {
-  description = "Nombre del resource group"
+  description = "Resource Group donde vive el AKS"
   value       = module.rg.name
 }
 
-output "vm_name" {
-  description = "Nombre de la VM"
-  value       = module.vm.vm_name
+output "aks_cluster_name" {
+  description = "Nombre del cluster AKS"
+  value       = module.aks.cluster_name
+}
+
+output "aks_kubeconfig_raw" {
+  description = "Kubeconfig del cluster (RAW)"
+  value       = module.aks.kube_config
+  sensitive   = true
+}
+
+output "aks_subnet_id" {
+  description = "Subnet donde está desplegado AKS"
+  value       = module.network.subnet_id
 }
