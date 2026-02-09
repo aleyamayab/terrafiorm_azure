@@ -11,4 +11,9 @@ variable "admin_password" {
   type      = string
   sensitive = true
 }
-variable "size" { default = "Standard_B2s" }
+
+
+variable "size" {
+  type    = string
+  default = "Standard_DS2_v2"
+}
