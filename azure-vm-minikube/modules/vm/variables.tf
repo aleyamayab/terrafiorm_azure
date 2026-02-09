@@ -1,8 +1,7 @@
 variable "name" {}
 variable "rg_name" {}
 variable "location" {}
-variable "subnet_id" {}
-variable "nsg_id" {}
+
 variable "admin_user" {
   type = string
 }
